@@ -15,6 +15,22 @@ class Members extends Authenticatable
     protected $hidden = [
         'member_password',
     ];
-    protected $fillable = ['member_full_name', 'member_email', 'member_password','member_profile','member_gender','member_age','member_weight','member_weight_unit','member_height_ft','member_height_in','member_goal','member_exp','member_excerise_place','member_token','member_status'];
+    protected $fillable = ['member_full_name', 'member_email', 'member_password','member_profile','member_gender','member_age','member_weight','member_weight_unit','member_height_ft','member_height_in','member_goal','member_exp','member_excerise_place','member_token','member_status','health_details_completed_at'];
 
+    protected $casts = [
+        'health_details_completed_at' => 'datetime',
+    ];
+
+    // Tells the app whether to show the health details onboarding screen after register/login.
+    protected $appends = ['health_details_completed'];
+
+    public function getHealthDetailsCompletedAttribute(): bool
+    {
+        return $this->health_details_completed_at !== null;
+    }
+
+    public function healthDetails()
+    {
+        return $this->hasMany(MemberHealthDetail::class, 'member_id', 'member_id');
+    }
 }

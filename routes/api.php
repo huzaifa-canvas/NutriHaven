@@ -13,6 +13,7 @@ use App\Http\Controllers\Api\Tag;
 use App\Http\Controllers\Api\MasterExerciseController;
 use App\Http\Controllers\Api\WorkoutPlanController;
 use App\Http\Controllers\Api\WorkoutLogController;
+use App\Http\Controllers\Api\HealthDetailsController;
 
 Route::fallback(function(){
     return response()->json([
@@ -58,6 +59,13 @@ Route::middleware('auth:sanctum')->group(
             Route::post('/delete/{id}', [WorkoutPlanController::class, 'destroy']);
         });
         
+        // Health Details (onboarding after register + My Profile edit)
+        Route::prefix('health-details')->group(function () {
+            Route::get('/options', [HealthDetailsController::class, 'options']);
+            Route::get('/', [HealthDetailsController::class, 'show']);
+            Route::post('/', [HealthDetailsController::class, 'store']);
+        });
+
         // Workout Logs
         Route::prefix('workout-logs')->group(function () {
             Route::post('/create', [WorkoutLogController::class, 'store']);

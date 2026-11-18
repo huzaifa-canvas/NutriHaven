@@ -1,0 +1,289 @@
+{
+  "info": {
+    "name": "NutriHaven - Health Details",
+    "description": "Health details onboarding (after register) and My Profile edit, in the client format (accessibility_profile, dietary_profile, medical_profile). Response adds derived_workout_flags and derived_meal_flags, computed by the server. Set {{base_url}} and {{token}} (token from /api/login or /api/register).",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "Health Details",
+      "item": [
+        {
+          "name": "Get Options (screen content)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{base_url}}/api/health-details/options",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "health-details",
+                "options"
+              ]
+            },
+            "description": "Groups, categories, questions and options in mockup order. Each group has profile (JSON key) and list_field (categories / allergens / conditions)."
+          },
+          "response": []
+        },
+        {
+          "name": "Get My Health Details",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{base_url}}/api/health-details",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "health-details"
+              ]
+            },
+            "description": "Current profiles + derived flags + health_details_completed. Use to pre-fill My Profile."
+          },
+          "response": []
+        },
+        {
+          "name": "Save - Onboarding (full)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{base_url}}/api/health-details",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "health-details"
+              ]
+            },
+            "description": "Onboarding submit after register. Categories listed = checked. Do not send derived flags; the server computes them. Sets health_details_completed = true.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"accessibility_profile\": {\n    \"categories\": [\n      \"mobility\",\n      \"visual\",\n      \"hearing\",\n      \"cognitive\",\n      \"other\"\n    ],\n    \"mobility\": {\n      \"uses_mobility_aid\": true,\n      \"floor_transition_capable\": false,\n      \"standing_tolerance\": \"not_long\",\n      \"limited_rom_joints\": [\n        \"knee\"\n      ]\n    },\n    \"visual\": {\n      \"vision_type\": \"low_vision\",\n      \"needs_audio_cues\": true,\n      \"needs_high_contrast_ui\": true\n    },\n    \"hearing\": {\n      \"needs_visual_cues\": true,\n      \"needs_captions\": true\n    },\n    \"cognitive\": {\n      \"simplified_instructions\": true,\n      \"extended_rest_periods\": true,\n      \"avoid_high_stimulation\": true\n    },\n    \"other_condition_notes\": \"Recovering from a hip strain, avoid twisting for now\",\n    \"excluded_exercises\": [\n      \"deep_squats\",\n      \"overhead_press\"\n    ]\n  },\n  \"dietary_profile\": {\n    \"allergens\": [\n      \"nuts\",\n      \"dairy\",\n      \"other\"\n    ],\n    \"nuts\": {\n      \"severity\": \"severe\"\n    },\n    \"dairy\": {\n      \"severity\": \"avoid\"\n    },\n    \"other_allergy_notes\": \"Mild shellfish intolerance, avoid but not allergic\"\n  },\n  \"medical_profile\": {\n    \"conditions\": [\n      \"diabetes\"\n    ],\n    \"diabetes\": {\n      \"on_glucose_medication\": true\n    }\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Save - Skip (nothing applies)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{base_url}}/api/health-details",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "health-details"
+              ]
+            },
+            "description": "Empty body is valid: nothing selected. Still marks onboarding complete.",
+            "body": {
+              "mode": "raw",
+              "raw": "{}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Save - Profile Edit (uncheck)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{base_url}}/api/health-details",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "health-details"
+              ]
+            },
+            "description": "My Profile edit. Send the full current selection; categories no longer listed are marked inactive (answers kept).",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"accessibility_profile\": {\n    \"categories\": [\n      \"mobility\"\n    ],\n    \"mobility\": {\n      \"uses_mobility_aid\": true,\n      \"floor_transition_capable\": false,\n      \"standing_tolerance\": \"not_long\",\n      \"limited_rom_joints\": [\n        \"knee\"\n      ]\n    }\n  },\n  \"dietary_profile\": {\n    \"allergens\": [\n      \"nuts\"\n    ],\n    \"nuts\": {\n      \"severity\": \"severe\"\n    }\n  },\n  \"medical_profile\": {\n    \"conditions\": []\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Save - Validation Error (422)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{base_url}}/api/health-details",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "health-details"
+              ]
+            },
+            "description": "Example of a failing save: required safety questions missing for checked categories.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"accessibility_profile\": {\n    \"categories\": [\n      \"mobility\"\n    ],\n    \"mobility\": {\n      \"uses_mobility_aid\": true\n    }\n  },\n  \"dietary_profile\": {\n    \"allergens\": [\n      \"dairy\"\n    ]\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        }
+      ]
+    }
+  ],
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "http://nutrihaven.test"
+    },
+    {
+      "key": "token",
+      "value": ""
+    }
+  ]
+}
