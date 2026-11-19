@@ -2,6 +2,8 @@
 
 namespace App\Support;
 
+use App\Models\MasterExercise;
+
 /**
  * Health details onboarding definition (Disabilities, Food Allergies, Medical Conditions).
  *
@@ -12,7 +14,9 @@ namespace App\Support;
  *  - Every group is optional: submitting nothing is a valid, completed onboarding.
  *  - Once a category is checked, its safety questions are required.
  *  - Free-text fields are optional and capped at 300 characters.
- *  - excluded_exercises only accepts predefined tags, never free typing.
+ *  - excluded_exercises is open for now (no validation); /options still suggests the
+ *    master_exercises list. It will be validated against master_exercises later.
+ *  - Validation messages are written for members and shown as-is in the app.
  */
 class HealthDetails
 {
@@ -26,25 +30,6 @@ class HealthDetails
         'disabilities' => ['profile' => 'accessibility_profile', 'list' => 'categories'],
         'food_allergies' => ['profile' => 'dietary_profile', 'list' => 'allergens'],
         'medical_conditions' => ['profile' => 'medical_profile', 'list' => 'conditions'],
-    ];
-
-    /**
-     * Predefined movement tags members can exclude ("Any specific movements or exercises to avoid?").
-     * Placeholder list until the exercise library is tagged; keep slugs stable once in use.
-     */
-    public const EXCLUDABLE_EXERCISE_TAGS = [
-        'deep_squats' => 'Deep squats',
-        'lunges' => 'Lunges',
-        'overhead_press' => 'Overhead press',
-        'jumping' => 'Jumping',
-        'running' => 'Running',
-        'burpees' => 'Burpees',
-        'push_ups' => 'Push-ups',
-        'planks' => 'Planks',
-        'deadlifts' => 'Deadlifts',
-        'twisting' => 'Twisting movements',
-        'kneeling' => 'Kneeling',
-        'lying_on_floor' => 'Lying on the floor',
     ];
 
     public static function groups(): array
@@ -119,7 +104,7 @@ class HealthDetails
                         'subhead' => 'Optional — a sentence or two is plenty.',
                         'questions' => [
                             ['field' => 'other_condition_notes', 'label' => 'Tell us about anything else that affects how you exercise', 'type' => 'text', 'required' => false, 'max' => self::NOTES_MAX],
-                            ['field' => 'excluded_exercises', 'label' => 'Any specific movements or exercises to avoid?', 'type' => 'tags', 'required' => false, 'options' => self::EXCLUDABLE_EXERCISE_TAGS],
+                            ['field' => 'excluded_exercises', 'label' => 'Any specific movements or exercises to avoid?', 'type' => 'exercises', 'required' => false],
                         ],
                     ],
                 ],
@@ -189,7 +174,12 @@ class HealthDetails
             foreach ($group['categories'] as $catKey => $cat) {
                 $cat['key'] = $catKey;
                 $cat['questions'] = array_map(function ($q) {
-                    if (isset($q['options'])) {
+                    if ($q['type'] === 'exercises') {
+                        // Live from the exercise library, so admin-added exercises show up automatically.
+                        $q['options'] = MasterExercise::query()->orderBy('name')->get(['id', 'name'])
+                            ->map(fn ($e) => ['value' => $e->id, 'label' => $e->name])
+                            ->all();
+                    } elseif (isset($q['options'])) {
                         $q['options'] = collect($q['options'])
                             ->map(fn ($label, $value) => ['value' => $value, 'label' => $label])
                             ->values()->all();
@@ -216,7 +206,27 @@ class HealthDetails
      */
     public static function rules(array $input): array
     {
+        return self::validation($input)[0];
+    }
+
+    /**
+     * Member-facing error messages (shown as-is in the app), keyed like the rules.
+     */
+    public static function messages(array $input): array
+    {
+        return self::validation($input)[1];
+    }
+
+    private const MSG_GENERIC = 'Something went wrong with your answers. Please go back and try again.';
+    private const MSG_OPTION_GONE = 'One of the options you picked is no longer available. Please select again.';
+
+    /**
+     * @return array{0: array, 1: array} [rules, messages]
+     */
+    private static function validation(array $input): array
+    {
         $rules = [];
+        $messages = [];
 
         foreach (self::groups() as $groupKey => $group) {
             $profile = self::PROFILES[$groupKey]['profile'];
@@ -226,6 +236,11 @@ class HealthDetails
             $rules[$profile] = ['sometimes', 'nullable', 'array'];
             $rules["{$profile}.{$list}"] = ['sometimes', 'nullable', 'array'];
             $rules["{$profile}.{$list}.*"] = ['string', 'distinct', 'in:' . implode(',', array_keys($group['categories']))];
+            $messages["{$profile}.array"] = self::MSG_GENERIC;
+            $messages["{$profile}.{$list}.array"] = self::MSG_GENERIC;
+            $messages["{$profile}.{$list}.*.string"] = self::MSG_OPTION_GONE;
+            $messages["{$profile}.{$list}.*.in"] = self::MSG_OPTION_GONE;
+            $messages["{$profile}.{$list}.*.distinct"] = self::MSG_GENERIC;
 
             $checked = self::checkedCategories($groupKey, $profileInput);
 
@@ -233,7 +248,7 @@ class HealthDetails
                 if ($catKey === 'other') {
                     // "Other" fields sit directly on the profile and are always optional.
                     foreach ($cat['questions'] as $q) {
-                        $rules += self::questionRules("{$profile}.{$q['field']}", $q, false);
+                        self::questionRules($rules, $messages, "{$profile}.{$q['field']}", $q, false);
                     }
                     continue;
                 }
@@ -242,36 +257,61 @@ class HealthDetails
                     continue;
                 }
 
-                $rules["{$profile}.{$catKey}"] = ['required', 'array'];
+                // A missing category object is reported through its required questions below.
+                $rules["{$profile}.{$catKey}"] = ['nullable', 'array'];
+                $messages["{$profile}.{$catKey}.array"] = self::MSG_GENERIC;
+
                 foreach ($cat['questions'] as $q) {
-                    $rules += self::questionRules("{$profile}.{$catKey}.{$q['field']}", $q, $q['required']);
+                    self::questionRules($rules, $messages, "{$profile}.{$catKey}.{$q['field']}", $q, $q['required']);
                 }
             }
         }
 
-        return $rules;
+        return [$rules, $messages];
     }
 
-    private static function questionRules(string $path, array $q, bool $required): array
+    private static function questionRules(array &$rules, array &$messages, string $path, array $q, bool $required): void
     {
         $presence = $required ? 'required' : 'nullable';
+        $label = rtrim($q['label'], '?.');
 
         switch ($q['type']) {
             case 'boolean':
-                return [$path => [$presence, 'boolean']];
-            case 'single_select':
-                return [$path => [$presence, 'string', 'in:' . implode(',', array_keys($q['options']))]];
-            case 'multi_select':
-            case 'tags':
-                return [
-                    $path => [$presence, 'array'],
-                    "{$path}.*" => ['string', 'distinct', 'in:' . implode(',', array_keys($q['options']))],
-                ];
-            case 'text':
-                return [$path => [$presence, 'string', 'max:' . ($q['max'] ?? self::NOTES_MAX)]];
-        }
+                $rules[$path] = [$presence, 'boolean'];
+                $messages["{$path}.required"] = "Please answer Yes or No: {$label}?";
+                $messages["{$path}.boolean"] = "Please answer Yes or No: {$label}?";
+                break;
 
-        return [];
+            case 'single_select':
+                $rules[$path] = [$presence, 'string', 'in:' . implode(',', array_keys($q['options']))];
+                $messages["{$path}.required"] = "Please choose an answer: {$label}?";
+                $messages["{$path}.string"] = "Please choose one of the given answers: {$label}?";
+                $messages["{$path}.in"] = "Please choose one of the given answers: {$label}?";
+                break;
+
+            case 'multi_select':
+                $rules[$path] = [$presence, 'array'];
+                $rules["{$path}.*"] = ['string', 'distinct', 'in:' . implode(',', array_keys($q['options']))];
+                $messages["{$path}.required"] = "Please choose at least one option: {$label}?";
+                $messages["{$path}.array"] = "Please choose from the given options: {$label}?";
+                $messages["{$path}.*.string"] = "Please choose from the given options: {$label}?";
+                $messages["{$path}.*.in"] = "Please choose from the given options: {$label}?";
+                $messages["{$path}.*.distinct"] = "You picked the same option twice. Please remove the duplicate.";
+                break;
+
+            case 'exercises':
+                // Open for now: anything the member enters is accepted.
+                // TODO: validate against master_exercises later.
+                $rules[$path] = ['nullable'];
+                break;
+
+            case 'text':
+                $max = $q['max'] ?? self::NOTES_MAX;
+                $rules[$path] = [$presence, 'string', "max:{$max}"];
+                $messages["{$path}.string"] = 'Please type your answer as text.';
+                $messages["{$path}.max"] = "Your note is a bit long. Please keep it under {$max} characters.";
+                break;
+        }
     }
 
     /**
@@ -371,8 +411,13 @@ class HealthDetails
                     $clean[$q['field']] = $value === null ? null : filter_var($value, FILTER_VALIDATE_BOOLEAN);
                     break;
                 case 'multi_select':
-                case 'tags':
                     $clean[$q['field']] = array_values(array_unique(is_array($value) ? $value : []));
+                    break;
+                case 'exercises':
+                    // Accepts a list or a single value; keeps non-empty scalar entries as sent.
+                    $items = is_array($value) ? $value : ($value === null ? [] : [$value]);
+                    $items = array_map(fn ($v) => is_string($v) ? trim($v) : $v, array_filter($items, 'is_scalar'));
+                    $clean[$q['field']] = array_values(array_unique(array_filter($items, fn ($v) => $v !== '' && $v !== false)));
                     break;
                 case 'text':
                     $value = is_string($value) ? trim($value) : null;

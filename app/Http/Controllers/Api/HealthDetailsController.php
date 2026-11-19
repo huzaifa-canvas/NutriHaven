@@ -9,6 +9,7 @@ use App\Support\HealthFlags;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Validator;
 
 class HealthDetailsController extends Controller
@@ -54,16 +55,17 @@ class HealthDetailsController extends Controller
     {
         $member = Auth::user();
         if (!$member) {
-            return response()->json(['status' => false, 'message' => 'User not authenticated'], 401);
+            return response()->json(['status' => false, 'message' => 'Your session has expired. Please log in again.'], 401);
         }
 
         $input = $request->all();
-        $validator = Validator::make($input, HealthDetails::rules($input));
+        $validator = Validator::make($input, HealthDetails::rules($input), HealthDetails::messages($input));
 
         if ($validator->fails()) {
             return response()->json([
                 'status' => false,
-                'message' => 'Validation failed',
+                // First problem, ready to show as a toast; `errors` maps each field to its message.
+                'message' => $validator->errors()->first(),
                 'errors' => $validator->errors(),
             ], 422);
         }
@@ -104,10 +106,11 @@ class HealthDetailsController extends Controller
                 'data' => $this->present($member->fresh()),
             ], 200);
         } catch (\Throwable $th) {
+            Log::error('Health details save failed', ['member_id' => $member->member_id, 'exception' => $th]);
+
             return response()->json([
                 'status' => false,
-                'message' => 'An error occurred while saving health details',
-                'error' => $th->getMessage(),
+                'message' => "We couldn't save your details right now. Please try again in a moment.",
             ], 500);
         }
     }
@@ -124,7 +127,6 @@ class HealthDetailsController extends Controller
             ->each(function ($row) use (&$answers) {
                 $answers[$row->group][$row->category] = $row->answers ?? [];
             });
-
         return ['health_details_completed' => $member->health_details_completed]
             + HealthDetails::toProfiles($answers)
             + [
